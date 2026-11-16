@@ -1,0 +1,9 @@
+# RelayBoard alone with the BMS and MPPT peers on its CAN bus. Paths relative to this file.
+machines:
+  relay: { mcu: STM32G474RET6, elf: build/bin/RelayBoard.elf, overlay: relay.board,
+           analog: [{adc: adc1, channel: 11, points: [[0, 3.0]]}] }
+media:
+  - type: can
+    connect: [relay.fdcan2, relay.bps, relay.mppt]
+timeout: 10
+quantum: 0.00004

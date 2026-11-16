@@ -1,0 +1,16 @@
+# MotorBoard's I2C2 (0x40005800) carries the throttle and regen pots:
+# MotorInterface.h THROTTLE_ADR (0b0101111 << 1) and REGEN_ADR (0b0101110 << 1),
+# 7-bit 0x2F and 0x2E. Those are the two addresses of an MCP45X1 ('0101 11' + A0,
+# DS22096B section 6.2), and the 257-step write format (0x100 - value) is an
+# 8-bit part: MCP4551. See peers/i2c/mcp4551.py.
+throttle: I2C.ScriptedI2cSlave @ i2c2 0x2F
+    file: "sim/peers/mcp4551.py"
+regen: I2C.ScriptedI2cSlave @ i2c2 0x2E
+    file: "sim/peers/mcp4551.py"
+
+# The motor controller sits on MotorBoard's own motor CAN (FDCAN1, PA11/PA12,
+# MotorBoard/Inc/pindef.h); MotorBoard forwards every frame from it to the
+# main bus (forward_motor_can_message).
+mc: CAN.ScriptedCanNode @ sysbus 0x60100200
+    file: "sim/peers/rivanna_motor_controller.py"
+    baudRate: 250000

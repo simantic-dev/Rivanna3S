@@ -1,0 +1,10 @@
+# External nodes on the main CAN bus (FDCAN2 on every board), hung off the
+# relay machine only so they have a place in a platform description; scenario.yaml
+# connects them to the bus. baudRate is the 250 kbit/s every board passes to
+# CanInterface: a node at another rate is not heard.
+bps: CAN.ScriptedCanNode @ sysbus 0x60100000
+    file: "sim/peers/rivanna_bps.py"
+    baudRate: 250000
+mppt: CAN.ScriptedCanNode @ sysbus 0x60100100
+    file: "sim/peers/rivanna_mppt.py"
+    baudRate: 250000

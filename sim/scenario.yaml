@@ -1,0 +1,16 @@
+# Five Rivanna3S boards on one CAN bus. Paths are relative to this file; peer scripts relative to the repository root, where sim runs.
+machines:
+  relay:      { mcu: STM32G474RET6, elf: build/bin/RelayBoard.elf, overlay: relay.board,
+                analog: [{adc: adc1, channel: 11, points: [[0, 3.0]]}] }
+  motor:      { mcu: STM32G474RET6, elf: build/bin/MotorBoard.elf, overlay: motor.board }
+  telemetry:  { mcu: STM32G474RET6, elf: build/bin/TelemetryBoard.elf }
+  topdist:    { mcu: STM32G474RET6, elf: build/bin/TopDistBoard.elf }
+  bottomdist: { mcu: STM32G474RET6, elf: build/bin/BottomDistBoard.elf }
+media:
+  - type: can
+    connect: [relay.fdcan2, motor.fdcan2, telemetry.fdcan2, topdist.fdcan2, bottomdist.fdcan2,
+              relay.bps, relay.mppt]
+  - type: can                             # MotorBoard's own motor CAN (FDCAN1)
+    connect: [motor.fdcan1, motor.mc]
+timeout: 10
+quantum: 0.00004                          # 40 us, under one minimum 250 kbit/s frame
