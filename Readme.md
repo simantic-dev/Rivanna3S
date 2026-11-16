@@ -21,6 +21,18 @@ RelayBoard, the precharge sequence (CAN id 0x258, byte 0 = motor stage | mppt st
 
 That excerpt is from `sim/run.sh`, taken from the frame capture and the RelayBoard's own log line.
 
+![Precharge state over time](sim/screenshots/precharge.png)
+
+RelayBoard's PrechargeStatus (0x258, byte 0) against virtual time, with the BMS peer's BpsError at
+8.0 s marked. Configuration `sim/scenario.yaml` (five boards), 10 virtual seconds, Simantic `sim` 0.10.0
+(build f219eb31), 2026-11-15, drawn from the run's `--frames` capture.
+
+![CAN frames per ID](sim/screenshots/can-frames.png)
+
+Every frame transmitted on the main bus in the same run, one row per CAN ID. The grey top row is each
+frame TelemetryBoard was sent and dropped as `bit_rate_mismatch` (451 of 451; it received none), the gap
+described below.
+
 **What runs:** five controllers, each on its own simulated STM32G474RET6, all on the same firmware tree.
 
 | Board | Firmware | In the simulation |
