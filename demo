@@ -1,11 +1,55 @@
 #!/bin/sh
-# Rivanna3S five-board car on a simulated CAN bus. Usage: ./demo [seconds]
-# Needs the images from sim/build.sh (arm-none-eabi-gcc, cmake, ninja). Uses `sim` from PATH; SIM=/path/to/sim overrides.
+# Rivanna3S five-board car: the unmodified firmware on five simulated STM32G474RET6 on one CAN bus.
+# ./demo [seconds]  run it (default 10 virtual s, about 30 s wall clock; needs sim 0.10.0 and the built images)
+# ./demo build      build the five images first (arm-none-eabi-gcc, cmake, ninja)
 set -eu
-SIM="${SIM:-sim}"
 cd "$(dirname "$0")"
+if [ "${1:-}" = build ]; then exec sh sim/build.sh; fi
+SIM="${SIM:-sim}"
 command -v "$SIM" >/dev/null || { echo "sim not found. Install it: curl -fsSL https://simantic.com/install | sh" >&2; exit 1; }
-[ -f sim/build/bin/RelayBoard.elf ] || { echo "build first: sim/build.sh" >&2; exit 1; }
+[ -f sim/build/bin/RelayBoard.elf ] || { echo "not built yet: ./demo build" >&2; exit 1; }
+mkdir -p sim/out
+# Values are decoded from the RelayBoard's own CAN log lines ("Received"/"Sent ... Data 0x..."), so they are
+# the bytes the firmware actually moved. Frame layouts: Common/can_structs (BPS 0x406, PrechargeStatus 0x258,
+# BpsError 0x3AA) and the MPPT peer's float32 little-endian frames (0x180).
 "$SIM" run --scenario sim/scenario.yaml --timeout "${1:-10}" --ascii 2>&1 \
-  | grep --line-buffered -E 'initialized|Precharge disabled|\[bps\]' \
-  | sed -u -E 's#^.*/Rivanna3S/##'
+  | tee sim/out/demo.log \
+  | awk '
+  function hx(s,   i, v) { v = 0; for (i = 1; i <= length(s); i++) v = v * 16 + index("0123456789ABCDEF", substr(s, i, 1)) - 1; return v }
+  function f32le(s,   b, e, m, sg) {
+    b = hx(substr(s, 7, 2) substr(s, 5, 2) substr(s, 3, 2) substr(s, 1, 2))
+    sg = b >= 2147483648 ? -1 : 1; e = int(b / 8388608) % 256; m = b % 8388608
+    return e ? sg * (1 + m / 8388608) * 2 ^ (e - 127) : 0
+  }
+  function stage(n) { return n == 0 ? "WaitForHV" : n == 1 ? "WaitForEnable" : n == 2 ? "WaitForThreshold" : n == 3 ? "WaitForMainRelay" : "Done" }
+  /initialized$/ && $1 != "[telemetry]" || /Telemetry Board starting up/ {
+    msg = $0; sub(/.*\.cpp:[0-9]+: /, "", msg)
+    printf "%-10s @%ss %s\n", substr($1, 2, length($1) - 2), substr($2, 2, length($2) - 3), msg
+  }
+  $1 == "[relay]" && /Precharge disabled due to fault/ && !pf { pf = 1; printf "relay      @%ss FAULT Precharge disabled due to fault\n", substr($2, 2, length($2) - 3) }
+  $1 == "[relay]" && /CAN message with ID/ {
+    t = substr($2, 2) + 0; id = $0; sub(/.*ID /, "", id); id = id + 0
+    match($0, /Data 0x[0-9A-F]+/); d = substr($0, RSTART + 7, RLENGTH - 7)
+    if (id == 1030 && $0 ~ /Received/ && !bps) {
+      bps = 1; c = hx(substr(d, 5, 4)); if (c >= 32768) c -= 65536
+      printf "relay RX 0x406 BpsStatus @%.2fs: pack %.1f V, current %.1f A, SOC %.1f %%, discharge relay %s\n", t, hx(substr(d, 1, 4)) / 10, c / 10, hx(substr(d, 9, 2)) / 2, hx(substr(d, 11, 2)) % 2 ? "closed" : "open"
+    }
+    if (id == 384 && $0 ~ /Received/ && !mppt) {
+      mppt = 1; printf "relay RX 0x180 MG0 MPPT @%.2fs: input %.2f A, %.2f V\n", t, f32le(substr(d, 1, 8)), f32le(substr(d, 9, 8))
+    }
+    if (id == 600 && $0 ~ /Sent/) {
+      b = hx(substr(d, 1, 2)); lm = b % 8; lp = int(b / 8) % 8; lo = int(b / 128); lt = t
+      if (lm lp lo != key) {
+        key = lm lp lo
+        printf "relay TX 0x258 PrechargeStatus @%.2fs: motor %s, mppt %s%s\n", t, stage(lm), stage(lp), lo ? ", other_fault" : ""
+      }
+    }
+    if (id == 938 && $0 ~ /Received/ && !flt) {
+      flt = 1; ft = t; printf "relay RX 0x3AA BpsError @%.2fs: %s (byte0 0x%s)\n", t, int(hx(substr(d, 1, 2)) / 2) % 2 ? "weak_cell_fault" : "fault bits set", substr(d, 1, 2)
+    }
+    if (id == 1030 && $0 ~ /Received/) { lv = hx(substr(d, 1, 4)) / 10 }
+  }
+  END {
+    if (!lt) { print "no precharge status seen: see sim/out/demo.log"; exit 1 }
+    printf "done: pack %.1f V, precharge motor %s, mppt %s, other_fault %d after weak_cell_fault at %.2fs\n", lv, stage(lm), stage(lp), lo, ft
+  }'
