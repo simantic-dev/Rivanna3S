@@ -1,0 +1,11 @@
+#!/bin/sh
+# Rivanna3S five-board car on a simulated CAN bus. Usage: ./demo [seconds]
+# Needs the images from sim/build.sh (arm-none-eabi-gcc, cmake, ninja). Uses `sim` from PATH; SIM=/path/to/sim overrides.
+set -eu
+SIM="${SIM:-sim}"
+cd "$(dirname "$0")"
+command -v "$SIM" >/dev/null || { echo "sim not found. Install it: curl -fsSL https://simantic.com/install | sh" >&2; exit 1; }
+[ -f sim/build/bin/RelayBoard.elf ] || { echo "build first: sim/build.sh" >&2; exit 1; }
+"$SIM" run --scenario sim/scenario.yaml --timeout "${1:-10}" --ascii 2>&1 \
+  | grep --line-buffered -E 'initialized|Precharge disabled|\[bps\]' \
+  | sed -u -E 's#^.*/Rivanna3S/##'

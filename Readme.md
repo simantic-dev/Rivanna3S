@@ -1,3 +1,19 @@
+## Demo: the five-board car in simulation
+
+```sh
+git clone https://github.com/simantic-dev/Rivanna3S && cd Rivanna3S && sim/build.sh && ./demo
+```
+
+You need `sim` 0.10.0 or newer, `arm-none-eabi-gcc`, `cmake` and `ninja` for the build. `curl -fsSL https://simantic.com/install | sh` installs `sim`.
+
+![five boards booting and a precharge fault in simulation](media/rivanna-car.gif)
+
+The five STM32G474 images (relay, motor, telemetry, top and bottom distance boards) are the team's firmware, built
+unmodified, and they boot and talk on one simulated CAN bus. The battery management system is a Python peer
+(`sim/peers/rivanna_bps.py`) that sends its status frames and, at 8 s, a weak-cell fault; the motor controller and the MPPT
+are Python peers too. Peers work at the transaction level (CAN frames and their fields), not
+as electrical models. The relay board's precharge logic then disables precharge on that fault.
+
 ## This fork: the car in a simulator
 
 This is Simantic's fork of the UVA Solar Car firmware, kept as a simulation showcase. It runs the
