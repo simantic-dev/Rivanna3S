@@ -8,7 +8,7 @@ machines:
   bottomdist: { mcu: STM32G474RET6, elf: build/bin/BottomDistBoard.elf }
 media:
   - type: can
-    connect: [relay.fdcan2, motor.fdcan2, telemetry.fdcan2, topdist.fdcan2, bottomdist.fdcan2,
+    connect: [relay.fdcan2, motor.fdcan2, telemetry.fdcan1, topdist.fdcan2, bottomdist.fdcan2,
               relay.bps, relay.mppt]
   - type: can                             # MotorBoard's own motor CAN (FDCAN1)
     connect: [motor.fdcan1, motor.mc]

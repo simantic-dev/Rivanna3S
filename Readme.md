@@ -29,9 +29,15 @@ RelayBoard's PrechargeStatus (0x258, byte 0) against virtual time, with the BMS 
 
 ![CAN frames per ID](sim/screenshots/can-frames.png)
 
-Every frame transmitted on the main bus in the same run, one row per CAN ID. The grey top row is each
-frame TelemetryBoard was sent and dropped as `bit_rate_mismatch` (451 of 451; it received none), the gap
-described below.
+Every frame transmitted in the same run, one row per CAN ID.
+
+**Corrected 2026-11-16.** An earlier version of this page said TelemetryBoard's FDCAN2 ran at 1 Mbit/s and
+that the simulator dropped all 451 frames to it as `bit_rate_mismatch`, blaming a model or firmware
+init-order gap. That was a wiring error in `sim/scenario.yaml`, not a model or firmware fault:
+TelemetryBoard's CAN pins (PA11/PA12) are FDCAN1, and the firmware never initialises FDCAN2. The scenario
+connected `telemetry.fdcan2`, which sat at its reset NBTP `0x06000A03` (NBRP=0, NTSEG1=10, NTSEG2=3 =
+16 time quanta at the 16 MHz kernel clock = 1.000 Mbit/s, RM0440 section 44.4.7). The scenario now connects
+`telemetry.fdcan1`, which the firmware programs to 250 kbit/s like the other four boards' FDCAN2.
 
 **What runs:** five controllers, each on its own simulated STM32G474RET6, all on the same firmware tree.
 
@@ -41,7 +47,7 @@ described below.
 | MotorBoard | `MotorBoard` | boots, FDCAN1 and FDCAN2, throttle and regen potentiometers over I2C, sends and receives CAN |
 | BottomDistBoard | `BottomDistBoard` | boots, sends pedal status, receives CAN |
 | TopDistBoard | `TopDistBoard` | boots, receives CAN |
-| TelemetryBoard | `TelemetryBoard` | boots, but hears nothing on the bus and has no SD card, see the gaps below |
+| TelemetryBoard | `TelemetryBoard` | boots, receives CAN (451 of 451 frames in 10 s), has no SD card, see the gaps below |
 
 **The scenario**, as `sim graph --scenario sim/scenario.yaml` prints it. Square boxes are the simulated
 MCUs running the firmware, rounded boxes are the modelled parts around them, hexagons are the CAN buses:
@@ -63,7 +69,7 @@ flowchart LR
   medium0{{"can"}}
   relay -- "fdcan2" --- medium0
   motor -- "fdcan2" --- medium0
-  telemetry -- "fdcan2" --- medium0
+  telemetry -- "fdcan1" --- medium0
   topdist -- "fdcan2" --- medium0
   bottomdist -- "fdcan2" --- medium0
   relay_bps --- medium0
@@ -78,9 +84,9 @@ flowchart LR
 | Configuration | Where | Virtual | Wall | Result |
 | --- | --- | --- | --- | --- |
 | RelayBoard alone with BMS and MPPT peers | `sim/relay-only.yaml` | 10 s | 3.6 s | runs: 252 frames on the bus, precharge reaches Done at 5.48 s, fault at 8.07 s opens it |
-| All five boards, one main bus plus the motor bus | `sim/scenario.yaml` | 10 s | 14 to 24 s, depending on machine load | runs, except TelemetryBoard: see below |
+| All five boards, one main bus plus the motor bus | `sim/scenario.yaml` | 10 s | 14 to 24 s, depending on machine load | runs; TelemetryBoard has no SD card, see below |
 
-Both were run with Simantic's `sim` 0.10.0 (build f219eb31) on 2026-11-15, against firmware commit
+Both were run with Simantic's `sim` 0.10.0 (build f219eb31) on 2026-11-15 (five-board row re-run 2026-11-16 with the corrected scenario: 15 s wall, TelemetryBoard received 451 frames, no `bit_rate_mismatch` warnings), against firmware commit
 `dd53492` built with the Arm GNU toolchain 15.2, Debug, `BOARD=STM32G474RET6`. In the five-board run the
 buses carried 451 transmitted frames in 10 s: 100 MotorCommands (0xC8) from MotorBoard, 100 PedalStatus
 (0x1F4) from BottomDistBoard, 96 PrechargeStatus (0x258) and 1 AuxBatteryStatus (0x64) from RelayBoard,
@@ -99,18 +105,14 @@ The BMS and MPPT periods and the 8 s fault are stand-ins chosen for the scenario
 no cycle times); each is marked as a simplification in the peer.
 
 **Gaps, with the evidence:**
-- **TelemetryBoard sees no CAN traffic in the simulation. Cause not established.** The simulator warns
-  that its FDCAN2 runs at 1,000,000 bit/s while the other four boards and the peers run at 250,000, and
-  drops all 451 frames to it as `bit_rate_mismatch`. All five boards share one `fdcan.c`; in the RelayBoard and TelemetryBoard images there is one
-  call site into it, and TelemetryBoard asks for 250000 like the rest, so this is either a model gap or
-  an init-order effect in the firmware. `unverified` which.
 - **TelemetryBoard's SD card never mounts**: `SPI init failed: no matching peripheral for MOSI/MISO/SCK
   pins`, then `SD: mount failed`. Read from the source, the SD driver's file-scope SPI object claims SPI2
   before `app_main` builds a second one on the same pins. That is in the firmware, not the simulator, and
   it is left as is.
-- **Bus bit timing in the firmware** (`fdcan.c`): the prescaler is computed for a 4 MHz kernel clock
-  while FDCAN is clocked from the 16 MHz HSI, and before the time segments are set. The two errors
-  cancel and the boards that work read back 250 kbit/s, the rate they ask for. Reproduced, not fixed.
+- **Bus bit timing in the firmware** (`fdcan.c`): `calculate_prescaler(&hfdcanN, 4000000, baud)` is called
+  before NominalTimeSeg1/2 are assigned, and FDCAN is clocked from the 16 MHz HSI16, not 4 MHz. It yields
+  250 kbit/s only because 4 MHz x 4 matches the 16 MHz clock; the boards read back 250 kbit/s, the rate they
+  ask for. Reproduced, not fixed.
 - **`Log Overflow`** is logged on every board that prints the BpsError line.
 - No frame on the bus is a CAN-FD frame; the firmware uses classic CAN. Not run: DashboardCommands 0x12C
   is subscribed to by three boards and sent by none in this repository.
