@@ -1,3 +1,46 @@
+## Demo: the five-board car in simulation
+
+```sh
+./demo          # after ./demo build (once); about 25 s
+```
+
+![five boards booting, precharge, and a BMS weak-cell fault](media/rivanna-car.gif)
+
+```mermaid
+flowchart LR
+  relay["RelayBoard<br/>STM32G474RET6"]
+  motor["MotorBoard<br/>STM32G474RET6"]
+  telemetry["TelemetryBoard<br/>STM32G474RET6"]
+  topdist["TopDistBoard<br/>STM32G474RET6"]
+  bottomdist["BottomDistBoard<br/>STM32G474RET6"]
+  bps["BPS peer<br/>sim/peers/rivanna_bps.py"]
+  mppt["MPPT peer<br/>sim/peers/rivanna_mppt.py"]
+  mc["motor controller peer<br/>sim/peers/rivanna_motor_controller.py"]
+  pots["throttle and regen peers<br/>sim/peers/mcp4551.py"]
+  bus(("main CAN bus<br/>250 kbit/s"))
+  motorbus(("motor CAN"))
+  bps -- "CAN 0x406 BpsStatus: pack V, A, SOC<br/>0x3AA BpsError: weak_cell_fault" --> bus
+  mppt -- "CAN 0x180 / 0x280 MG0 input, output" --> bus
+  relay -- "CAN 0x258 PrechargeStatus: stage per contactor" --> bus
+  motor -- "CAN main bus" --- bus
+  telemetry -- "CAN main bus" --- bus
+  topdist -- "CAN main bus" --- bus
+  bottomdist -- "CAN main bus" --- bus
+  motor -- "FDCAN1 motor CAN" --- motorbus
+  mc --- motorbus
+  motor -- "I2C2 0x2F / 0x2E: throttle, regen" --- pots
+  relay -- "UART5 log lines" --> host["terminal (./demo)"]
+```
+
+The five STM32G474 images (relay, motor, telemetry, top and bottom distance boards) are the team's firmware, built
+unmodified, and they boot and talk on one simulated CAN bus. The battery management system, MPPT, motor controller and
+throttle/regen pots are Python peers that work at the transaction level (CAN frames and their fields, I2C bytes), not as
+electrical models. The demo's values are decoded from the RelayBoard's own CAN log lines, so they are the bytes the
+firmware sent or received. Known gaps: the BMS peer sends pack voltage, current and SOC only, so there are no per-cell
+voltages in this demo; the motor controller stays silent (the firmware sends no request), so no motor values appear;
+TelemetryBoard has no SD card; and the relay logs a `Log Overflow` fault at 8.02 s in the same run. Prerequisites:
+`sim` 0.10.0 (`curl -fsSL https://simantic.com/install | sh`), plus `arm-none-eabi-gcc`, `cmake` and `ninja` for `./demo build`.
+
 ## This fork: the car in a simulator
 
 This is Simantic's fork of the UVA Solar Car firmware, kept as a simulation showcase. It runs the
