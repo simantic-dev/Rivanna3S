@@ -26,6 +26,15 @@ RelayBoard, the precharge sequence (CAN id 0x258, byte 0 = motor stage | mppt st
 
 That excerpt is from `sim/run.sh`, taken from the frame capture and the RelayBoard's own log line.
 
+![The car on the simulated bus](sim/screenshots/car.gif)
+
+The five-board run (`sim/scenario.yaml`, 10 virtual seconds) as a dashboard: every number is decoded, with the
+team's own `Common/can_structs` definitions, from a CAN frame a board transmitted in the run, and the console pane
+is the boards' own UART log. Simulated on Simantic sim 0.10.8, virtual time, playback 0.67x. The BMS peer's pack
+voltage, current and SoC are the scenario's constants (`sim/peers/rivanna_bps.py`), and the pedal is not driven,
+so the car is idle: the run shows the precharge sequence and the response to the BMS fault at 8.0 s, not driving.
+Regenerate with `sim/run.sh && python3 sim/make_gif.py <sim-version>`.
+
 ![Precharge state over time](sim/screenshots/precharge.png)
 
 RelayBoard's PrechargeStatus (0x258, byte 0) against virtual time, with the BMS peer's BpsError at
