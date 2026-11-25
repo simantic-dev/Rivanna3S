@@ -20,11 +20,9 @@ RelayBoard, the precharge sequence (CAN id 0x258, byte 0 = motor stage | mppt st
   3.159 s  data=12 93 13 ...   waiting for threshold
   5.249 s  data=1B 93 13 ...   waiting for main relay
   5.561 s  data=24 93 13 ...   done
-  8.073 s  FAULT RelayBoard/Src/Precharge.cpp:129: Precharge disabled due to fault
-  8.078 s  data=80 93 13 ...   other_fault, after the BMS sends a weak-cell fault at 8 s
 ```
 
-That excerpt is from `sim/run.sh`, taken from the frame capture and the RelayBoard's own log line.
+That excerpt (a healthy pack for the whole run) is from `sim/run.sh`, taken from the frame capture and the RelayBoard's own log line.
 
 ![The car on the simulated bus](sim/screenshots/car.gif)
 
@@ -32,7 +30,7 @@ The five-board run (`sim/scenario.yaml`, 10 virtual seconds) as a dashboard: eve
 team's own `Common/can_structs` definitions, from a CAN frame a board transmitted in the run, and the console pane
 is the boards' own UART log. Simulated on Simantic sim 0.10.8, virtual time, playback 0.67x. The BMS peer's pack
 voltage, current and SoC are the scenario's constants (`sim/peers/rivanna_bps.py`), and the pedal is not driven,
-so the car is idle: the run shows the precharge sequence and the response to the BMS fault at 8.0 s, not driving.
+so the car is idle: the run shows the precharge sequence reaching Done, not driving. The BMS peer reports a healthy pack throughout; its optional weak-cell BpsError (`FAULT_AT_TICK` in the peer) is off. When it was on, RelayBoard correctly opened the contactors and the BMS log filled up: that was our injected stimulus, not a firmware defect.
 Regenerate with `sim/run.sh && python3 sim/make_gif.py <sim-version>`.
 
 ![Precharge state over time](sim/screenshots/precharge.png)
@@ -109,13 +107,13 @@ and the peers' BMS and MPPT frames. The two potentiometers on MotorBoard's I2C a
 
 The parts around the boards are Python models in `sim/peers/`, following the team's own CAN definitions
 in `Common/can_structs`:
-- **BMS** (`rivanna_bps.py`): BpsStatus 0x406 every 100 ms and one BpsError 0x3AA at 8 s.
+- **BMS** (`rivanna_bps.py`): BpsStatus 0x406 every 100 ms and an optional BpsError 0x3AA (off by default).
 - **MPPT** (`rivanna_mppt.py`): the 0x180/0x181, 0x280/0x281, 0x480/0x481 frames.
 - **Motor controller** (`rivanna_motor_controller.py`): on MotorBoard's own CAN; stays silent because no
   board in this firmware sends it a request.
 - **Throttle and regen pots** (`mcp4551.py`): the two I2C devices at 0x2F and 0x2E.
 
-The BMS and MPPT periods and the 8 s fault are stand-ins chosen for the scenario (the definitions carry
+The BMS and MPPT periods and the optional fault are stand-ins chosen for the scenario (the definitions carry
 no cycle times); each is marked as a simplification in the peer.
 
 **Gaps, with the evidence:**

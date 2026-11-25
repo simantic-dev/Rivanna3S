@@ -73,7 +73,7 @@ def draw(c, t):
         e = at(mid, t); y = 356 + i * 31
         fresh = e and t - e[0] < 0.25
         c.text(38, y, nm, 15, FG if e else DIM, True); c.text(166, y + 1, f"0x{mid:03X}", 13, DIM, False, True)
-        c.text(214, y + 1, fn(e[3]) if e else "not sent yet", 13, (AMBER if fresh else FG) if e else DIM, False, True)
+        c.text(214, y + 1, fn(e[3]) if e else ("not sent: no fault" if mid == 0x3AA else "not sent yet"), 13, (AMBER if fresh else FG) if e else DIM, False, True)
     c.log(536, 322, 720, 360, log, t, sz=14)
     c.footer(VER, SPEED)
 

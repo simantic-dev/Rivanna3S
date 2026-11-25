@@ -13,7 +13,7 @@
 #
 # MODELED SIMPLIFICATION: the DBC carries no cycle time, so STATUS_PERIOD_US is
 # a stand-in for the rate set in the BMS's own configuration. FAULT_AT_TICK is
-# the scenario's stimulus (a weak-cell fault after that many status frames);
+# an optional stimulus (a weak-cell fault after that many status frames);
 # None turns it off.
 import struct
 
@@ -23,7 +23,7 @@ PACK_VOLTAGE_DV = 1000          # 100.0 V
 PACK_CURRENT_DA = 0
 PACK_SOC_HALF_PCT = 160         # 80 %
 DISCHARGE_RELAY_CLOSED = 0x01
-FAULT_AT_TICK = 80              # 8 s at STATUS_PERIOD_US
+FAULT_AT_TICK = None            # healthy pack all run; 80 = weak-cell fault at 8 s (STATUS_PERIOD_US)
 WEAK_CELL_FAULT = 0x02          # BpsError byte0 bit1
 
 
